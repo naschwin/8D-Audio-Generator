@@ -41,34 +41,38 @@ def concatenate_segments(processed_segments, chunk_size=100, pbar=None):
 
     return sum(results, AudioSegment.empty())
 
-def create_8d_audio(input_file_path: str, output_file_path: str, panning_frequency:int = 8, amplitude: int =1.2):
+def create_8d_audio(input_file_path: str, output_file_path: str, panning_frequency: int = 8, amplitude: int = 1.2, dev: bool = False):
     logger.info("Starting the 8D audio creation...")
     audio = AudioSegment.from_file(input_file_path)
-    
+
     segment_size = 50  # Segment size in ms
     total_segments = len(audio) // segment_size
 
-    with tqdm(total=total_segments * 2, desc="Overall Progress", unit="segments") as pbar:
-        processed_segments = []
-        
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = []
-            logger.info("Calculating panning")
-            for i in range(0, len(audio), segment_size):
-                segment = audio[i:i+segment_size]
-                futures.append(executor.submit(process_segment, segment, i // segment_size, total_segments, panning_frequency, amplitude))
+    pbar = tqdm(total=total_segments * 2, desc="Overall Progress", unit="segments") if dev else None
 
-            logger.info("Collecting the segments")
-            for future in concurrent.futures.as_completed(futures):
-                result, index = future.result()
-                processed_segments.append((index, result))
+    processed_segments = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        logger.info("Calculating panning")
+        for i in range(0, len(audio), segment_size):
+            segment = audio[i:i + segment_size]
+            futures.append(executor.submit(process_segment, segment, i // segment_size, total_segments, panning_frequency, amplitude))
+
+        logger.info("Collecting the segments")
+        for future in concurrent.futures.as_completed(futures):
+            result, index = future.result()
+            processed_segments.append((index, result))
+            if pbar:
                 pbar.update(1)
 
-        logger.info("Sort the processed segments by their original index")
-        processed_segments.sort(key=lambda x: x[0])
+    if pbar:
+        pbar.close()
 
-        logger.info("Concatenate all processed segments in order")
-        output = concatenate_segments(processed_segments, pbar=pbar)
+    logger.info("Sort the processed segments by their original index")
+    processed_segments.sort(key=lambda x: x[0])
+
+    logger.info("Concatenate all processed segments in order")
+    output = concatenate_segments(processed_segments, pbar=pbar if dev else None)
 
     logger.info("Exporting song")
     output.export(output_file_path, format="mp3")
