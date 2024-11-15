@@ -40,6 +40,9 @@ async def generate_audio(panning_frequency: int = 8, amplitude: int = 2, file: U
     try:
         logger.info("Process the uploaded file")
 
+        # Ensure the temp directory exists
+        os.makedirs("temp", exist_ok=True)
+
         input_file_path = f"temp/{uuid.uuid4()}_{file.filename}"
         output_file_path = f"temp/{uuid.uuid4()}_8d_{file.filename}"
 
